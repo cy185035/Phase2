@@ -8,6 +8,8 @@ import 'Order.dart';
 
 List<Order> orders = <Order>[];
 final controller = ScrollController();
+String path = "Merchant/Store1/Orders";
+late Item item;
 
 class layout extends StatefulWidget {
   bool bumpState = false;
@@ -23,90 +25,71 @@ class layout extends StatefulWidget {
 class _layoutState extends State<layout> {
   @override
   Widget build(BuildContext context) {
+    print("building");
     return Scaffold(
       body: buildOrders(),
     );
   }
 
   DatabaseReference ref = FirebaseDatabase.instance.ref();
+
   Widget buildOrders() {
-    String path = "Merchant/Store1/Items";
-    // print(widget.group);
-    // print(widget.bumpState);
     return StreamBuilder(
-        stream: ref.child(path).onValue,
+        stream: ref
+            .child(path)
+            .onValue,
         builder: (BuildContext context, AsyncSnapshot<DatabaseEvent> snapshot) {
           if (snapshot.hasError) {
-            return const Text('Something went wrong');
+            return const Center(child: Text('Something went wrong'));
           }
 
           if (snapshot.connectionState == ConnectionState.waiting) {
+            print("LOADING...");
             return const Center(child: CircularProgressIndicator());
           }
 
-          Map<String, Item> items = <String, Item>{};
+          orders = [];
           if (snapshot.data!.snapshot.value != null) {
             var snap = snapshot.data!.snapshot.value as Map;
+            print(snap);
             if (snap != null) {
               snap.forEach(
-                (key, value) {
+                    (key, value) {
                   int orderNumber = value["orderNumber"];
-                  String name = value["name"];
-                  String routingGroup = value["routingGroup"];
-                  List<Object?> modifiers = value["modifiers"];
-                  // print(key);
-                  // print(routingGroup);
-                  bool checked = value["checked"];
-                  bool orderBumped = value["orderBumped"];
-                  if (bumpState == orderBumped &&
-                      widget.group == routingGroup) {
-                    Item item = Item(name, modifiers, checked, orderBumped,
-                        orderNumber, routingGroup, key);
-                    items[key] = item;
+                  bool bumped = value["bumped"];
+                  List<Item> items = <Item>[];
+
+                  value["items"].forEach((itemObject) {
+                    if (itemObject["routingGroup"] == widget.group) {
+                      items.add(Item(
+                          itemObject["name"],
+                          itemObject["modifiers"],
+                          itemObject["checked"],
+                          itemObject["orderBumped"],
+                          itemObject["orderNumber"],
+                          itemObject["routingGroup"],
+                          key));
+                    }
+                  });
+
+                  if (bumpState == bumped) {
+                    if (items.isNotEmpty) {
+                      // print(items[0].name);
+                      Order order = Order(orderNumber, bumped, items,
+                          Colors.grey, key);
+                      orders.add(order);
+                    }
                   }
                 },
               );
             }
           }
-
-          Map<int, Order> orderMap = {};
-          items.forEach((key, value) {
-            print(value.name);
-
-            Order? order = orderMap[value.orderNumber];
-            if (order == null) {
-              // create the order
-              List<Item> orderItems = [value];
-              order =
-                  Order(value.orderNumber, 1, false, orderItems, Colors.blue);
-              orderMap[value.orderNumber] = order;
-            } else {
-              order.bumped = value.orderBumped;
-              bool exists = false;
-              int itemIndex = -1;
-              for (int i = 0; i < order.items.length; i++) {
-                if (order.items[i].key == key) {
-                  exists = true;
-                  itemIndex = i;
-                }
-              }
-              if (exists)
-                order.items[itemIndex] = value;
-              else
-                order.items.add(value);
-            }
-          });
-
-          orders = [];
-          orderMap.forEach((key, value) {
-            orders.add(value);
-          });
-
           return buildGridView();
         });
   }
 
-  Widget buildGridView() => GridView.builder(
+  Widget buildGridView() =>
+      GridView.builder(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 4,
           childAspectRatio: .75,
@@ -117,11 +100,14 @@ class _layoutState extends State<layout> {
         controller: controller,
         itemCount: orders.length,
         itemBuilder: (context, index) {
-          return buildNumber(orders[index], ref, "Merchant/Store1/Items");
+          return buildNumber(orders, index, ref, path);
         },
       );
-  Widget buildNumber(Order randOrder, DatabaseReference ref, String path) =>
-      Container(
+
+  Widget buildNumber(List<Order> orders, int index, DatabaseReference ref, String path) {
+      if (orders.isEmpty) return Container();
+      Order randOrder = orders[index];
+      return Container(
         color: Colors.white,
         width: double.infinity,
         height: 350,
@@ -141,17 +127,13 @@ class _layoutState extends State<layout> {
                 // width: 700,
                 child: GestureDetector(
                   onTap: () {
-                    print("hi");
                     randOrder.bumped = !randOrder.bumped;
                     setState(() {
-                      for (int i = 0; i < randOrder.items.length; i++) {
-                        print(
-                            "the index is ${i} and the order is ${randOrder.items[i]}");
-                        String key = randOrder.items[i].key;
-                        ref
-                            .child(path + "/" + key)
-                            .update({"orderBumped": randOrder.bumped});
-                      }
+                      String key = (randOrder).key;
+                      ref
+                          .child("$path/$key")
+                          .update({"bumped": randOrder.bumped});
+                      orders.remove(randOrder);
                     });
 
                     // _changeBumped(randOrder);
@@ -177,7 +159,7 @@ class _layoutState extends State<layout> {
                                       fontSize: 14,
                                       textStyle: const TextStyle(
                                           color:
-                                              Color.fromRGBO(82, 82, 82, 1))),
+                                          Color.fromRGBO(82, 82, 82, 1))),
                                 ),
                               ],
                             ),
@@ -210,7 +192,7 @@ class _layoutState extends State<layout> {
                                       fontSize: 12,
                                       textStyle: const TextStyle(
                                           color:
-                                              Color.fromRGBO(82, 82, 82, 1))),
+                                          Color.fromRGBO(82, 82, 82, 1))),
                                 ),
                               ],
                             ),
@@ -239,7 +221,7 @@ class _layoutState extends State<layout> {
                     for (int i = 0; i < randOrder.items.length; i++)
                       Container(
                         decoration: BoxDecoration(
-                            color: (randOrder.items[i].checked)
+                            color: ((randOrder.items[i]).checked)
                                 ? const Color(0xffEFEFF0)
                                 : Colors.white,
                             border: const Border(
@@ -250,74 +232,72 @@ class _layoutState extends State<layout> {
                           child: Column(
                             children: [
                               Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: <Widget>[
-                                    Text(
-                                      randOrder.items[i].name,
-                                      style: GoogleFonts.roboto(
-                                          fontWeight: FontWeight.w500,
-                                          fontSize: 18),
-                                    ),
-                                    Checkbox(
-                                      //changes checkbox background
-                                      activeColor: const Color(0xffEFEFF0),
-                                      //just changes checkmarl color
-                                      checkColor: Colors.green,
-                                      value: randOrder.items[i].checked,
-                                      onChanged: (bool? value) {
-                                        setState(
-                                          () {
-                                            randOrder.items[i].checked = value!;
-                                            String key = randOrder.items[i].key;
-                                            ref.child(path + "/" + key).update({
-                                              "checked":
-                                                  randOrder.items[i].checked
-                                            });
-                                            if (randOrder.items[i].checked) {
-                                              bool allChecked = true;
-                                              for (int k = 0;
-                                                  k < randOrder.items.length;
-                                                  k++) {
-                                                if (randOrder
-                                                        .items[k].checked ==
-                                                    false) {
-                                                  allChecked = false;
-                                                }
-                                              }
-                                              if (allChecked) {
-                                                // _changeBumped(randOrder);
-                                                for (int i = 0;
-                                                    i < randOrder.items.length;
-                                                    i++) {
-                                                  String key =
-                                                      randOrder.items[i].key;
-                                                  ref
-                                                      .child(path + "/" + key)
-                                                      .update({
-                                                    "orderBumped": true
-                                                  });
-                                                }
+                                mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
+                                children: <Widget>[
+                                  Text(
+                                    (randOrder.items[i]).name,
+                                    style: GoogleFonts.roboto(
+                                        fontWeight: FontWeight.w500,
+                                        fontSize: 18),
+                                  ),
+                                  Checkbox(
+                                    //changes checkbox background
+                                    activeColor: const Color(0xffEFEFF0),
+                                    //just changes checkmarl color
+                                    checkColor: Colors.green,
+                                    value: (randOrder.items[i]).checked,
+                                    onChanged: (bool? value) {
+                                      setState(
+                                            () {
+                                          (randOrder.items[i]).checked = value!;
+                                          String key = (randOrder).key;
+                                          ref
+                                              .child("$path/$key/items/$i")
+                                              .update({
+                                            "checked":
+                                            (randOrder.items[i]).checked
+                                          });
+                                          if ((randOrder.items[i]).checked) {
+                                            bool allChecked = true;
+                                            for (int k = 0;
+                                            k < randOrder.items.length;
+                                            k++) {
+                                              if ((randOrder.items[k])
+                                                  .checked ==
+                                                  false) {
+                                                allChecked = false;
+                                                break;
                                               }
                                             }
-                                          },
-                                        );
-                                      },
-                                    ), //Checkb
-                                  ]),
+                                            if (allChecked) {
+                                              // _changeBumped(randOrder);
+                                              String key = (randOrder).key;
+                                              ref
+                                                  .child("$path/$key")
+                                                  .update({"bumped": true});
+                                            }
+                                          }
+                                        },
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
                               Column(
                                 children: <Widget>[
                                   // Spacer(),
                                   const Padding(
                                       padding: EdgeInsets.only(left: 0)),
                                   for (int j = 0;
-                                      j < randOrder.items[i].modifiers.length;
-                                      j++)
+                                  j < (randOrder.items[i]).modifiers.length;
+                                  j++)
                                     Align(
                                       alignment: Alignment.centerLeft,
                                       child: Container(
                                         child: Text(
-                                          '          ${randOrder.items[i].modifiers[j]}',
+                                          '          ${(randOrder.items[i])
+                                              .modifiers[j]}',
                                           style: GoogleFonts.roboto(
                                               fontWeight: FontWeight.w500,
                                               fontSize: 14),
@@ -339,4 +319,5 @@ class _layoutState extends State<layout> {
               ), //Padding
             ]),
       );
+}
 }
