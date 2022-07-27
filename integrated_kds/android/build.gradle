@@ -30,3 +30,8 @@ subprojects {
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
+
+//dependencies {
+//    implementation files('app/libs/bixolon_printer_V2.1.6.jar')
+//    implementation files('app/libs/libcommon_V1.1.6.jar')
+//}

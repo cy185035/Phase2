@@ -1,5 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'buildLayout.dart';
+
+const platform = MethodChannel('com.example.bix_flutter_integration/count');
+
+
+Future<void> _printOrders() async {
+
+  // TODO: edit to match new structure
+  if(orders.isEmpty) {
+    //dont do method
+    print("attempted to call print order but there are no orders");
+    return;
+  }
+
+  String idk;
+  String name;
+  List<Object?> mods;
+
+  try {
+    name = orders[0].items[0].name;
+    mods = orders[0].items[0].modifiers;
+    idk = await platform.invokeMethod("printOrder", {"name" : name, "modifiers": mods});
+  } on PlatformException catch (e) {
+    print("huhuh");
+  }
+
+}
 
 bool bumpState = false;
 List<String> groups = ['Dinners', 'Drinks', 'Lunches'];
@@ -104,6 +131,18 @@ class _myAppBarState extends State<myAppBar> {
         ),
         centerTitle: false,
         actions: <Widget>[
+          Padding(
+            padding: EdgeInsets.only(right: 20.0),
+            child: GestureDetector(
+              onTap: () {
+                _printOrders();
+              },
+              child: const Icon(
+                Icons.print,
+                color: Colors.black,
+              ),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 20.0),
             child: GestureDetector(
