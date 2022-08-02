@@ -5,8 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
 import 'firebase_options.dart';
-import 'Item.dart';
-import 'dart:math';
+import 'Order.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,19 +32,19 @@ Future<void> readJson() async {
 
 Future<void> generateOrders(int amount) async {
   DatabaseReference ref =
-      FirebaseDatabase.instance.ref().child("Merchant/Store1/Items");
+      FirebaseDatabase.instance.ref().child("Merchant/Store1/Orders");
 
   for (int i = 0; i < amount; i++) {
-    var rng = Random().nextInt(1000);
-    Item item = Item.generateRandomOrder();
-    Map map = Item.convertItemToMap(item);
-    ref.update({item.hashCode.toString(): map});
+    Order order = Order.generateRandomOrder();
+    Map map = Order.convertOrderToMap(order);
+    Map<String, Map> orderMap = {order.hashCode.toString(): map};
+    ref.update(orderMap);
   }
 }
 
 void clearData() {
   DatabaseReference ref =
-      FirebaseDatabase.instance.ref().child("Merchant/Store1/Items");
+      FirebaseDatabase.instance.ref().child("Merchant/Store1/Orders");
 
   ref.remove();
   print("cleared");
